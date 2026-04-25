@@ -83,7 +83,17 @@ def draw_background(screen, stars):
 
 
 def draw_hud(screen, font, small_font, score, lives, wave, rockets, pulses, paused):
-    panel_width = min(screen.get_width() - 32, 560)
+    status_text = f"Score {score}    Lives {lives}    Wave {wave}    Rockets {rockets}    Pulse {pulses}"
+    controls_text = "WASD move   Space fire   N rocket   B pulse   P pause"
+    pause_label = "PAUSED" if paused else "P PAUSE"
+
+    status_surface = font.render(status_text, True, TEXT_PRIMARY)
+    controls_surface = small_font.render(controls_text, True, TEXT_SECONDARY)
+    pause_surface = small_font.render(pause_label, True, TEXT_PRIMARY)
+
+    content_width = max(status_surface.get_width(), controls_surface.get_width()) + 32
+    pause_width = pause_surface.get_width() + 28
+    panel_width = min(screen.get_width() - 32, max(560, content_width + pause_width + 12))
     panel_rect = pygame.Rect(16, 16, panel_width, 96)
     shadow_rect = panel_rect.move(0, 6)
     shadow_surface = pygame.Surface(shadow_rect.size, pygame.SRCALPHA)
@@ -98,17 +108,11 @@ def draw_hud(screen, font, small_font, score, lives, wave, rockets, pulses, paus
     title_surface = small_font.render("MISSION STATUS", True, TEXT_SECONDARY)
     screen.blit(title_surface, (panel_rect.x + 16, panel_rect.y + 10))
 
-    status_text = f"Score {score}    Lives {lives}    Wave {wave}    Rockets {rockets}    Pulse {pulses}"
-    status_surface = font.render(status_text, True, TEXT_PRIMARY)
     screen.blit(status_surface, (panel_rect.x + 16, panel_rect.y + 34))
 
-    controls_text = "WASD move   Space fire   N rocket   B pulse   P pause"
-    controls_surface = small_font.render(controls_text, True, TEXT_SECONDARY)
     screen.blit(controls_surface, (panel_rect.x + 16, panel_rect.bottom - 24))
 
-    pause_label = "PAUSED" if paused else "P PAUSE"
     pause_color = (255, 220, 120) if paused else HUD_ACCENT
-    pause_surface = small_font.render(pause_label, True, TEXT_PRIMARY)
     pause_box = pygame.Rect(panel_rect.right - pause_surface.get_width() - 24, panel_rect.y + 10, pause_surface.get_width() + 12, 24)
     pygame.draw.rect(screen, (14, 22, 36), pause_box, border_radius=10)
     pygame.draw.rect(screen, pause_color, pause_box, width=2, border_radius=10)
