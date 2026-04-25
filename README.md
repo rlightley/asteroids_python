@@ -11,6 +11,7 @@ Small arcade-style Asteroids clone built with Pygame.
 - Lives, respawn invulnerability, pause, and restart support
 - Rocket pickups can drop from larger asteroid takedowns
 - Visual refresh with gradient background, starfield, thrust flame, and improved HUD
+- Persistent local high scores with player-name entry after each run
 - Lightweight JSONL state and event logging for debugging
 
 ## Requirements
@@ -49,6 +50,12 @@ uv run python main.py
 - Larger asteroids can drop rocket pickups worth 2 rockets.
 - Rare cyan pickups restore 1 pulse charge.
 - After losing a life, the ship respawns in the center with a brief invulnerability window.
+- When a run ends, enter a pilot name and press `Enter` to save the score locally.
+
+## High Scores
+
+- Scores are stored locally in `high_scores.json`.
+- The game keeps the top 5 scores, ranked by score and then wave reached.
 
 ## Logs
 

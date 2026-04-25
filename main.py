@@ -22,6 +22,10 @@ from constants import STAR_TWINKLE_SPEED_MIN
 from constants import TEXT_PRIMARY
 from constants import TEXT_SECONDARY
 from constants import WAVE_CLEAR_DELAY_SECONDS
+from highscores import ensure_high_score_file
+from highscores import load_high_scores
+from highscores import save_high_score
+from logger import ensure_log_files
 from logger import log_state
 from logger import log_event
 from player import Player
@@ -81,6 +85,10 @@ def draw_background(screen, stars):
         brightness = int(star["alpha"] * (0.72 + 0.28 * (1 + pygame.math.Vector2(1, 0).rotate_rad(star["phase"]).x) / 2))
         pygame.draw.circle(screen, (brightness, brightness, brightness), star["position"], star["radius"])
 
+    vignette_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    pygame.draw.rect(vignette_surface, (4, 6, 12, 72), vignette_surface.get_rect(), width=32, border_radius=26)
+    screen.blit(vignette_surface, (0, 0))
+
 
 def draw_hud(screen, font, small_font, score, lives, wave, rockets, pulses, paused):
     status_text = f"Score {score}    Lives {lives}    Wave {wave}    Rockets {rockets}    Pulse {pulses}"
@@ -128,6 +136,36 @@ def draw_hud(screen, font, small_font, score, lives, wave, rockets, pulses, paus
         screen.blit(paused_surface, paused_rect)
 
 
+def draw_high_scores(screen, font, small_font, high_scores):
+    panel_width = 250
+    panel_height = 46 + len(high_scores) * 28 + 12
+    panel_rect = pygame.Rect(screen.get_width() - panel_width - 16, 16, panel_width, panel_height)
+
+    panel_surface = pygame.Surface(panel_rect.size, pygame.SRCALPHA)
+    pygame.draw.rect(panel_surface, (10, 18, 30, 214), panel_surface.get_rect(), border_radius=18)
+    pygame.draw.rect(panel_surface, (*HUD_ACCENT, 92), panel_surface.get_rect(), width=2, border_radius=18)
+    screen.blit(panel_surface, panel_rect.topleft)
+
+    title_surface = small_font.render("HIGH SCORES", True, TEXT_SECONDARY)
+    screen.blit(title_surface, (panel_rect.x + 14, panel_rect.y + 10))
+
+    if not high_scores:
+        empty_surface = small_font.render("No records yet", True, TEXT_SECONDARY)
+        screen.blit(empty_surface, (panel_rect.x + 14, panel_rect.y + 38))
+        return
+
+    for index, entry in enumerate(high_scores, start=1):
+        line_y = panel_rect.y + 34 + index * 24
+        rank_surface = small_font.render(f"{index}.", True, TEXT_SECONDARY)
+        name_surface = small_font.render(entry["name"], True, TEXT_PRIMARY)
+        score_surface = small_font.render(str(entry["score"]), True, TEXT_PRIMARY)
+        wave_surface = small_font.render(f"W{entry['wave']}", True, TEXT_SECONDARY)
+        screen.blit(rank_surface, (panel_rect.x + 14, line_y))
+        screen.blit(name_surface, (panel_rect.x + 40, line_y))
+        screen.blit(wave_surface, (panel_rect.right - 74, line_y))
+        screen.blit(score_surface, (panel_rect.right - 18 - score_surface.get_width(), line_y))
+
+
 def draw_center_message(screen, font, title, subtitle):
     title_surface = font.render(title, True, TEXT_PRIMARY)
     subtitle_surface = font.render(subtitle, True, TEXT_SECONDARY)
@@ -135,6 +173,48 @@ def draw_center_message(screen, font, title, subtitle):
     subtitle_rect = subtitle_surface.get_rect(center=(screen.get_width() / 2, screen.get_height() / 2 + 20))
     screen.blit(title_surface, title_rect)
     screen.blit(subtitle_surface, subtitle_rect)
+
+
+def draw_game_over_overlay(screen, font, small_font, score, wave, player_name, score_saved, high_scores):
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    overlay.fill((6, 8, 18, 168))
+    screen.blit(overlay, (0, 0))
+
+    panel_rect = pygame.Rect(0, 0, 560, 320)
+    panel_rect.center = (screen.get_width() / 2, screen.get_height() / 2)
+    panel_surface = pygame.Surface(panel_rect.size, pygame.SRCALPHA)
+    pygame.draw.rect(panel_surface, (12, 20, 34, 235), panel_surface.get_rect(), border_radius=26)
+    pygame.draw.rect(panel_surface, (*HUD_ACCENT, 108), panel_surface.get_rect(), width=2, border_radius=26)
+    screen.blit(panel_surface, panel_rect.topleft)
+
+    title_surface = font.render("Run Complete", True, TEXT_PRIMARY)
+    subtitle_surface = small_font.render(f"Score {score}    Wave {wave}", True, TEXT_SECONDARY)
+    screen.blit(title_surface, title_surface.get_rect(center=(panel_rect.centerx, panel_rect.y + 42)))
+    screen.blit(subtitle_surface, subtitle_surface.get_rect(center=(panel_rect.centerx, panel_rect.y + 78)))
+
+    input_rect = pygame.Rect(panel_rect.x + 36, panel_rect.y + 108, panel_rect.width - 72, 48)
+    pygame.draw.rect(screen, (8, 14, 24), input_rect, border_radius=14)
+    pygame.draw.rect(screen, HUD_ACCENT, input_rect, width=2, border_radius=14)
+    name_label = small_font.render("Pilot Name", True, TEXT_SECONDARY)
+    name_surface = font.render(player_name or "_", True, TEXT_PRIMARY)
+    screen.blit(name_label, (input_rect.x + 14, input_rect.y + 6))
+    screen.blit(name_surface, (input_rect.x + 14, input_rect.y + 20))
+
+    prompt_text = "Press Enter to save score" if not score_saved else "Saved. Press R to start a new run"
+    prompt_surface = small_font.render(prompt_text, True, TEXT_SECONDARY)
+    screen.blit(prompt_surface, prompt_surface.get_rect(center=(panel_rect.centerx, panel_rect.y + 176)))
+
+    leaderboard_title = small_font.render("Top Pilots", True, TEXT_SECONDARY)
+    screen.blit(leaderboard_title, (panel_rect.x + 36, panel_rect.y + 212))
+
+    for index, entry in enumerate(high_scores[:5], start=1):
+        row_y = panel_rect.y + 214 + index * 18
+        row_surface = small_font.render(
+            f"{index}. {entry['name']:<12}  {entry['score']:>4}  W{entry['wave']}",
+            True,
+            TEXT_PRIMARY,
+        )
+        screen.blit(row_surface, (panel_rect.x + 36, row_y))
 
 
 def reset_round(player, asteroids, shots, rockets, pulses, pickups, asteroid_field, wave):
@@ -150,6 +230,8 @@ def reset_round(player, asteroids, shots, rockets, pulses, pickups, asteroid_fie
 def main():
     pygame.init()
     pygame.font.init()
+    ensure_log_files()
+    ensure_high_score_file()
 
     print(f"Starting Asteroids with pygame version: {pygame.version.ver}")
     print(f"Screen height: {SCREEN_HEIGHT}")
@@ -166,6 +248,8 @@ def main():
     wave = 1
     paused = False
     game_over = False
+    score_saved = False
+    player_name = ""
     wave_clear_timer = 0.0
     font = pygame.font.SysFont(None, 36)
     small_font = pygame.font.SysFont(None, 24)
@@ -178,6 +262,7 @@ def main():
     pulses = pygame.sprite.Group()
     pickups = pygame.sprite.Group()
     stars = create_starfield(SCREEN_WIDTH, SCREEN_HEIGHT)
+    high_scores = load_high_scores()
     Player.containers = (drawable, updatable)
     player = Player(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, dt, number_of_rockets)
 
@@ -201,6 +286,15 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return
+            if game_over and not score_saved and event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    high_scores = save_high_score(player_name, score, wave)
+                    score_saved = True
+                elif event.key == pygame.K_BACKSPACE:
+                    player_name = player_name[:-1]
+                elif event.unicode and event.unicode.isprintable() and len(player_name) < 12:
+                    player_name += event.unicode
+                continue
             if event.type == pygame.KEYDOWN and event.key == pygame.K_p and not game_over:
                 paused = not paused
             if event.type == pygame.KEYDOWN and event.key == pygame.K_b and not paused and not game_over:
@@ -208,11 +302,15 @@ def main():
                 if pulse is not None:
                     log_event("pulse_fired", wave=wave, score=score)
             if event.type == pygame.KEYDOWN and event.key == pygame.K_r and game_over:
+                if not score_saved:
+                    continue
                 score = 0
                 lives = PLAYER_STARTING_LIVES
                 wave = 1
                 paused = False
                 game_over = False
+                score_saved = False
+                player_name = ""
                 player.number_of_rockets = PLAYER_STARTING_ROCKETS
                 player.number_of_pulses = PLAYER_STARTING_PULSES
                 reset_round(player, asteroids, shots, rockets, pulses, pickups, asteroid_field, wave)
@@ -227,6 +325,7 @@ def main():
                     log_event("player_hit", lives=lives, wave=wave, score=score)
                     if lives <= 0:
                         game_over = True
+                        player_name = player_name or ""
                         print(f"Game Over! Score: {score}")
                         break
 
@@ -299,8 +398,9 @@ def main():
             sprite.draw(screen)
 
         draw_hud(screen, font, small_font, score, lives, wave, player.number_of_rockets, player.number_of_pulses, paused)
+        draw_high_scores(screen, font, small_font, high_scores)
         if game_over:
-            draw_center_message(screen, font, "Game Over", "Press R to restart")
+            draw_game_over_overlay(screen, font, small_font, score, wave, player_name, score_saved, high_scores)
 
         pygame.display.flip()
 

@@ -2,8 +2,12 @@ import inspect
 import json
 import math
 from datetime import datetime
+from pathlib import Path
 
 __all__ = ["log_state", "log_event"]
+
+_STATE_LOG_FILE = Path(__file__).with_name("game_state.jsonl")
+_EVENT_LOG_FILE = Path(__file__).with_name("game_events.jsonl")
 
 _FPS = 60
 _MAX_SECONDS = 16
@@ -13,6 +17,11 @@ _frame_count = 0
 _state_log_initialized = False
 _event_log_initialized = False
 _start_time = datetime.now()
+
+
+def ensure_log_files():
+    _STATE_LOG_FILE.touch(exist_ok=True)
+    _EVENT_LOG_FILE.touch(exist_ok=True)
 
 
 def log_state():
@@ -109,7 +118,7 @@ def log_state():
 
     # New log file on each run
     mode = "w" if not _state_log_initialized else "a"
-    with open("game_state.jsonl", mode) as f:
+    with open(_STATE_LOG_FILE, mode, encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
 
     _state_log_initialized = True
@@ -129,7 +138,7 @@ def log_event(event_type, **details):
     }
 
     mode = "w" if not _event_log_initialized else "a"
-    with open("game_events.jsonl", mode) as f:
+    with open(_EVENT_LOG_FILE, mode, encoding="utf-8") as f:
         f.write(json.dumps(event) + "\n")
 
     _event_log_initialized = True
